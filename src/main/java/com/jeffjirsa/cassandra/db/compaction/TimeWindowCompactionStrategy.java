@@ -18,20 +18,13 @@
 
 package com.jeffjirsa.cassandra.db.compaction;
 
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.Iterator;
-import java.util.TreeSet;
+import java.util.*;
 import java.util.concurrent.TimeUnit;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.*;
+import org.apache.cassandra.db.compaction.writers.CompactionAwareWriter;
+import org.apache.cassandra.io.sstable.format.SSTableWriter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -84,7 +77,7 @@ public class TimeWindowCompactionStrategy extends AbstractCompactionStrategy
 
             LifecycleTransaction modifier = cfs.getTracker().tryModify(latestBucket, OperationType.COMPACTION);
             if (modifier != null)
-                return new CompactionTask(cfs, modifier, gcBefore, false);
+                return new TimeWindowCompactionTask(cfs, modifier, gcBefore, false);
         }
     }
 
@@ -338,7 +331,7 @@ public class TimeWindowCompactionStrategy extends AbstractCompactionStrategy
         LifecycleTransaction txn = cfs.getTracker().tryModify(filteredSSTables, OperationType.COMPACTION);
         if (txn == null)
             return null;
-        return Collections.<AbstractCompactionTask>singleton(new CompactionTask(cfs, txn, gcBefore, false));
+        return Collections.<AbstractCompactionTask>singleton(new TimeWindowCompactionTask(cfs, txn, gcBefore, false));
     }
 
     @Override
@@ -353,7 +346,7 @@ public class TimeWindowCompactionStrategy extends AbstractCompactionStrategy
             return null;
         }
 
-        return new CompactionTask(cfs, modifier, gcBefore, false).setUserDefined(true);
+        return new TimeWindowCompactionTask(cfs, modifier, gcBefore, false).setUserDefined(true);
     }
 
     public int getEstimatedRemainingTasks()
@@ -383,5 +376,36 @@ public class TimeWindowCompactionStrategy extends AbstractCompactionStrategy
         return String.format("TimeWindowCompactionStrategy[%s/%s]",
                 cfs.getMinimumCompactionThreshold(),
                 cfs.getMaximumCompactionThreshold());
+    }
+
+    private class TTLAwareWriter extends CompactionAwareWriter
+    {
+
+        private HashMap<Integer, SSTableWriter> writers = new HashMap<Integer, SSTableWriter>();
+        public TTLAwareWriter(ColumnFamilyStore cfs, LifecycleTransaction txn, Set<SSTableReader> nonExpiredSSTables, boolean offline) {
+            super(cfs, txn, nonExpiredSSTables, offline);
+            writers = new HashMap<>();
+        }
+
+        @Override
+        public boolean append(AbstractCompactedRow abstractCompactedRow) {
+            return false;
+        }
+    }
+    // added by Jon.
+    private class TimeWindowCompactionTask extends CompactionTask
+    {
+
+        public TimeWindowCompactionTask(ColumnFamilyStore cfs, LifecycleTransaction txn, int gcBefore, boolean offline)
+        {
+            super(cfs, txn, gcBefore, offline);
+        }
+        @Override
+        public CompactionAwareWriter getCompactionAwareWriter(ColumnFamilyStore cfs, LifecycleTransaction txn, Set<SSTableReader> nonExpiredSSTables)
+        {
+            // should return a
+            return new TTLAwareWriter(cfs, txn, nonExpiredSSTables, false);
+        }
+
     }
 }
