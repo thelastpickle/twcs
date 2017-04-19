@@ -23,6 +23,7 @@ import java.util.concurrent.TimeUnit;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.*;
+import org.apache.cassandra.db.RowIndexEntry;
 import org.apache.cassandra.db.compaction.writers.CompactionAwareWriter;
 import org.apache.cassandra.io.sstable.format.SSTableWriter;
 import org.slf4j.Logger;
@@ -388,7 +389,10 @@ public class TimeWindowCompactionStrategy extends AbstractCompactionStrategy
         }
 
         @Override
-        public boolean append(AbstractCompactedRow abstractCompactedRow) {
+        public boolean append(AbstractCompactedRow abstractCompactedRow)
+        {
+            
+            RowIndexEntry rie = this.sstableWriter.append(abstractCompactedRow);
             return false;
         }
     }
