@@ -24,8 +24,6 @@ import java.util.concurrent.TimeUnit;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.*;
 import org.apache.cassandra.db.RowIndexEntry;
-import org.apache.cassandra.db.compaction.writers.CompactionAwareWriter;
-import org.apache.cassandra.io.sstable.format.SSTableWriter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -379,37 +377,5 @@ public class TimeWindowCompactionStrategy extends AbstractCompactionStrategy
                 cfs.getMaximumCompactionThreshold());
     }
 
-    private class TTLAwareWriter extends CompactionAwareWriter
-    {
 
-        private HashMap<Integer, SSTableWriter> writers = new HashMap<Integer, SSTableWriter>();
-        public TTLAwareWriter(ColumnFamilyStore cfs, LifecycleTransaction txn, Set<SSTableReader> nonExpiredSSTables, boolean offline) {
-            super(cfs, txn, nonExpiredSSTables, offline);
-            writers = new HashMap<>();
-        }
-
-        @Override
-        public boolean append(AbstractCompactedRow abstractCompactedRow)
-        {
-            
-            RowIndexEntry rie = this.sstableWriter.append(abstractCompactedRow);
-            return false;
-        }
-    }
-    // added by Jon.
-    private class TimeWindowCompactionTask extends CompactionTask
-    {
-
-        public TimeWindowCompactionTask(ColumnFamilyStore cfs, LifecycleTransaction txn, int gcBefore, boolean offline)
-        {
-            super(cfs, txn, gcBefore, offline);
-        }
-        @Override
-        public CompactionAwareWriter getCompactionAwareWriter(ColumnFamilyStore cfs, LifecycleTransaction txn, Set<SSTableReader> nonExpiredSSTables)
-        {
-            // should return a
-            return new TTLAwareWriter(cfs, txn, nonExpiredSSTables, false);
-        }
-
-    }
 }
