@@ -19,7 +19,6 @@
 package com.jeffjirsa.cassandra.db.compaction;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Iterator;
@@ -67,7 +66,6 @@ public class TimeWindowCompactionStrategy extends AbstractCompactionStrategy
         }
         else
             logger.debug("Enabling tombstone compactions for TWCS");
-
     }
 
     @Override
@@ -84,7 +82,7 @@ public class TimeWindowCompactionStrategy extends AbstractCompactionStrategy
                 return null;
 
             if (cfs.getDataTracker().markCompacting(latestBucket))
-                return new CompactionTask(cfs, latestBucket, gcBefore, false);
+                return new TimeWindowCompactionTask(cfs, latestBucket, gcBefore, options.ignoreOverlaps);
         }
     }
 
@@ -105,7 +103,8 @@ public class TimeWindowCompactionStrategy extends AbstractCompactionStrategy
         if (System.currentTimeMillis() - lastExpiredCheck > options.expiredSSTableCheckFrequency)
         {
             // Find fully expired SSTables. Those will be included no matter what.
-            expired = CompactionController.getFullyExpiredSSTables(cfs, uncompacting, cfs.getOverlappingSSTables(uncompacting), gcBefore);
+            expired = CompactionController.getFullyExpiredSSTables(cfs, uncompacting, options.ignoreOverlaps ? Collections.emptySet() : cfs.getOverlappingSSTables(uncompacting),
+                                                                    gcBefore, options.ignoreOverlaps);
             lastExpiredCheck = System.currentTimeMillis();
         }
 
@@ -345,7 +344,7 @@ public class TimeWindowCompactionStrategy extends AbstractCompactionStrategy
             return null;
         if (!cfs.getDataTracker().markCompacting(ImmutableList.copyOf(filteredSSTables)))
             return null;
-        return Collections.<AbstractCompactionTask>singleton(new CompactionTask(cfs, filteredSSTables, gcBefore, false));
+        return Collections.singleton(new TimeWindowCompactionTask(cfs, filteredSSTables, gcBefore, options.ignoreOverlaps));
     }
 
     @Override
@@ -359,7 +358,7 @@ public class TimeWindowCompactionStrategy extends AbstractCompactionStrategy
             return null;
         }
 
-        return new CompactionTask(cfs, sstables, gcBefore, false).setUserDefined(true);
+        return new TimeWindowCompactionTask(cfs, sstables, gcBefore, options.ignoreOverlaps).setUserDefined(true);
     }
 
     public int getEstimatedRemainingTasks()
